@@ -26,16 +26,16 @@ func HandleRequest(ctx context.Context, e json.RawMessage) (*int, error) {
 	fmt.Println("Start : ", start)
 	fmt.Println("Today : ", today)
 
-	// 오늘은 몇일 사귀었는지?
+	// 오늘은 몇일 만났는지?
 	todayFromBeginDay := TimeSub(start, today)
 
-	// 100일 전 알림
+	// 99일전 알림
 	is99 := false
 	if (todayFromBeginDay+1)%100 == 0 {
 		is99 = true
 	}
 
-	// x % 100
+	// 100일전 알림
 	is100 := false
 	if todayFromBeginDay%100 == 0 {
 		is100 = true
