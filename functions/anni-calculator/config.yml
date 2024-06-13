@@ -1,0 +1,18 @@
+## Required
+configs:
+  role_arn: lambda-common-role
+  function_name: anni-calucaltor
+
+## Required
+handler_config:
+  timeout: 60
+  memory_size: 128
+
+## Required (Only Uppercase)
+tags:
+  Name: hjh
+
+## Required (Only Uppercase)
+envs:
+  BIRTH_DAY: 10-01
+  START_DAY: 2024$05$26
