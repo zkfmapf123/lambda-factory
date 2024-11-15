@@ -5,116 +5,80 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
-	"strconv"
-	"strings"
-	"time"
 
 	"github.com/ashwanthkumar/slack-go-webhook"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/zkfmapf123/anni-calculator/src"
 )
 
 var (
-	TIME_LAYOUT = "2006-01-02"
-
-	START   = os.Getenv("START_DAY")
-	BIRTH   = os.Getenv("BIRTH_DAY")
-	WEBHOOK = "https://hooks.slack.com/services/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"
+	FIRST_MEET  = "2024-05-25" // 정혜랑 처음만난 날
+	JH_BIRTHDAY = "10-01"      // 정혜 생일
+	DG_BIRTHDAY = "08-04"      // 동규 생일
 )
 
+var (
+	WEBHOOK     = "https://hooks.slack.com/services/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"
+	CHANNEL     = "#chatbot-test"
+	ImojiRandom = []string{
+		":c1:", ":c2:", ":c3:", ":c4:", ":c5:",
+		":c6:", ":c7:", ":c8:", ":c9:", ":c10:",
+	}
+)
+
+type ILoveYouHJH struct {
+	today       string // 오늘 시간
+	meetDay     int    // 만난 날 (day)
+	meetHour    int    // 만난 시간 (hour)
+	meetSeconds int    // 만난 초 (seconds)
+
+	remainDayJHBirth int // 정혜 생일 남은 날
+	remainDayDGBirth int // 동규 생일 남은 날
+}
+
 func HandleRequest(ctx context.Context, e json.RawMessage) (*int, error) {
-	start := PieceOfYMD(START)
-	today := GetToday()
 
-	fmt.Println("Start : ", start)
-	fmt.Println("Today : ", today)
+	iloveHjh := ILoveYouHJH{}
 
-	// 오늘은 몇일 만났는지?
-	todayFromBeginDay := TimeSub(start, today)
+	today := src.GetToday()
 
-	// 99일전 알림
-	is99 := false
-	if (todayFromBeginDay+1)%100 == 0 {
-		is99 = true
-	}
+	iloveHjh.today = today
+	iloveHjh.meetDay = src.GetSubDay(today, FIRST_MEET)
+	iloveHjh.meetHour = src.GetSubHour(today, FIRST_MEET)
+	iloveHjh.meetSeconds = src.GetSubSeconds(today, FIRST_MEET)
 
-	// 100일전 알림
-	is100 := false
-	if todayFromBeginDay%100 == 0 {
-		is100 = true
-	}
+	t := src.ParsingDate(src.GetToday())
+	_jh_birthday := fmt.Sprintf("%d-%s", t.Year(), JH_BIRTHDAY)
+	_dg_birthday := fmt.Sprintf("%d-%s", t.Year(), DG_BIRTHDAY)
 
-	// 생일까지 몇일 남았는가?
-	leastForBirth := TimeSubBirthday(BIRTH, today)
+	iloveHjh.remainDayJHBirth = src.GetSubTodayUseStandard(_jh_birthday)
+	iloveHjh.remainDayDGBirth = src.GetSubTodayUseStandard(_dg_birthday)
 
-	fmt.Println("몇일 만났나요 ? ", todayFromBeginDay+1)
-	fmt.Println("%99", is99)
-	fmt.Println("%100", is100)
-	fmt.Println("생일까지 남은 날짜 ? ", leastForBirth)
+	sendToSlackTemplate(iloveHjh)
 
-	sendToSlackTemplate(strconv.Itoa(todayFromBeginDay+1), is99, is100, strconv.Itoa(leastForBirth))
 	return nil, nil
 }
 
-func sendToSlackTemplate(afterBeginDay string, is99 bool, is100 bool, afterBirthday string) {
+// ////////////////////////////////////////////////////// Send Slack ////////////////////////////////////////////////////////
+func sendToSlackTemplate(iloveyou ILoveYouHJH) {
 
 	attac := slack.Attachment{}
-	attac.AddField(slack.Field{Title: "--랑 몇일 만났니?", Value: afterBeginDay})
+	attac.AddField(slack.Field{Title: "정혜랑 몇일 만났니?", Value: fmt.Sprintf("%d 일", iloveyou.meetDay)})
+	attac.AddField(slack.Field{Title: "정혜 생일 남은 날", Value: fmt.Sprintf("%d 일", iloveyou.remainDayJHBirth), Short: true})
+	attac.AddField(slack.Field{Title: "동규 생일 남은 날", Value: fmt.Sprintf("%d 일", iloveyou.remainDayDGBirth), Short: true})
 
-	if is99 {
-		attac.AddField(slack.Field{Title: "*00일 하루 전 인가요?", Value: "Yes"})
-	}
-
-	if is100 {
-		attac.AddField(slack.Field{Title: "오늘은 00일 입니다", Value: "Yes"})
-	}
-
-	attac.AddField(slack.Field{Title: "-- 남은 생일 날", Value: afterBirthday})
-
-	now := GetToday()
+	attac.AddField(slack.Field{Title: "", Value: ImojiRandom[src.GetRand(0, 9)], Short: true})
+	// now := GetToday()
 	p := slack.Payload{
-		Text:        now,
+		Text:        src.GetToday(),
 		Channel:     "#chatbot-test",
 		Attachments: []slack.Attachment{attac},
 	}
 
 	err := slack.Send(WEBHOOK, "", p)
-	if err != nil {
-		panic(err)
-	}
-}
-
-// yyyy-mm-dd
-func PieceOfYMD(v string) string {
-	str := strings.Split(v, "$")
-	joinStr := strings.Join(str, "-")
-	return joinStr
-}
-
-// yyyy-mm-dd
-func GetToday() string {
-	loc, err := time.LoadLocation("Asia/Seoul")
-	if err != nil {
+	if len(err) > 0 {
 		log.Fatalln(err)
 	}
-
-	now := time.Now().In(loc)
-	return now.Format("2006-01-02")
-}
-
-func TimeSubBirthday(birthMMDD string, today string) int {
-	curYear := time.Now().Year()
-	fullDate := fmt.Sprintf("%d-%s", curYear, birthMMDD)
-
-	return TimeSub(fullDate, today)
-}
-
-func TimeSub(start, end string) int {
-	startDate, _ := time.Parse(TIME_LAYOUT, start)
-	endDate, _ := time.Parse(TIME_LAYOUT, end)
-
-	diff := endDate.Sub(startDate)
-	return int(diff.Hours() / 24)
 }
 
 func main() {
